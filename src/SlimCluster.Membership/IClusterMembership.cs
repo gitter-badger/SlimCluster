@@ -14,8 +14,6 @@
         /// </summary>
         IReadOnlyCollection<IMember> Members { get; }
 
-        void OnKeepAlive(INode node);
-
         event MemberJoinedEventHandler? MemberJoined;
         event MemberLeftEventHandler? MemberLeft;
 

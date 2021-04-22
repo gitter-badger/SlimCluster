@@ -43,7 +43,7 @@ Check out the [Samples](src/Samples/) folder.
 
 ## Example usage
 
-Setup SlimCluster with membership discovery:
+Setup membership discovery using the SWIM algorithm:
 
 ```cs
 // Assuming you're using Microsoft.Extensions.DependencyInjection

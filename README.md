@@ -45,8 +45,8 @@ Check out the [Samples](src/Samples/) folder.
 
 
 ```cs
-// Assuming you're using Microsoft.Extensions.DependencyInjection, and the container is being configured
-IServicesCollection servces = // ...
+// Assuming you're using Microsoft.Extensions.DependencyInjection
+IServicesCollection servces;
 
 // We are setting up the SWIM membership algorithm for your micro-service instances
 services.AddClusterMembership(opts => {

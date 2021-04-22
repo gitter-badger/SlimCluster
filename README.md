@@ -43,6 +43,7 @@ Check out the [Samples](src/Samples/) folder.
 
 ## Example usage
 
+Setup SlimCluster with membership discovery:
 
 ```cs
 // Assuming you're using Microsoft.Extensions.DependencyInjection
@@ -54,6 +55,22 @@ services.AddClusterMembership(opts => {
 });
 
 ```
+
+Then somwhere in your micro-service you can inject the `IClusterMembership`:
+
+```cs
+// Injected, this will be a singleton
+IClusterMemmbership cluster;
+
+// Provides a snapshot list of the current instances discovered and alive:
+cluster.Members 
+
+// Allows to get notifications when an new instance joines or leaves (dies):
+cluster.MemberJoined += (sender, e) => { /* e.Node and e.Timestamp */ };
+cluster.MemberLeft += (sender, e) => { /* e.Node and e.Timestamp */ };
+
+```
+
 
 ## License
 

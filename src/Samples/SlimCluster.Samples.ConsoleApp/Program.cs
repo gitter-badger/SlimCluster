@@ -2,7 +2,9 @@
 {
     using Microsoft.Extensions.Configuration;
     using Microsoft.Extensions.DependencyInjection;
+    using Microsoft.Extensions.Logging;
     using SlimCluster.Membership;
+    using SlimCluster.Membership.Swim;
     using SlimCluster.Strategy.Raft;
     using System;
     using System.Collections.Generic;
@@ -23,16 +25,25 @@
 
             await using var serviceProvider = services.BuildServiceProvider();
 
-            var raftCluster = serviceProvider.GetRequiredService<RaftCluster>();
+            //var raftCluster = serviceProvider.GetRequiredService<RaftCluster>();
+
+            var swimClusterMembership = serviceProvider.GetRequiredService<SwimMembershipProtocol>();
+
+            Console.WriteLine("Node is starting...");
+            await swimClusterMembership.Start();
 
             Console.WriteLine("Node is running");
 
             Console.WriteLine("Press any key to exit");
             Console.ReadKey();
+
+            Console.WriteLine("Node is stopping...");
+            await swimClusterMembership.Stop();
         }
     }
 
-    public class Startup {
+    public class Startup
+    {
 
         public IConfiguration Configuration { get; }
 
@@ -43,19 +54,25 @@
 
         public void Configure(ServiceCollection services)
         {
-            var clusterId = "SomeCluster";
+            services.AddLogging(opts => {
+                opts.AddConsole();
+            });
 
-            // Membership config
-            services.AddSingleton<IClusterMembership>(svp => new StaticClusterMemberlist(clusterId, new INode[] { }));
+            services.AddClusterMembership(opts => {
+                opts.ClusterId = "MyMicroserviceCluster";
+            });
 
-            // Raft consensus config
-            services.AddSingleton<RaftNode>();
-            services.AddSingleton<RaftCluster>(svp => new RaftCluster(clusterId));
-            services.AddSingleton<ICluster, RaftCluster>();
+            //// Membership config
+            //services.AddSingleton<IClusterMembership>(svp => new StaticClusterMemberlist(clusterId, new INode[] { }));
 
-            // App specific customization
-            services.AddTransient<IRaftTransport, AppRaftTransport>();
-            services.AddTransient<IStateMachine, AppStateMachine>();
+            //// Raft consensus config
+            //services.AddSingleton<RaftNode>();
+            //services.AddSingleton<RaftCluster>(svp => new RaftCluster(clusterId));
+            //services.AddSingleton<ICluster, RaftCluster>();
+
+            //// App specific customization
+            //services.AddTransient<IRaftTransport, AppRaftTransport>();
+            //services.AddTransient<IStateMachine, AppStateMachine>();
         }
     }
 
@@ -64,13 +81,13 @@
     /// </summary>
     public class AppRaftTransport : IRaftTransport
     {
-        public Task<AppendEntriesResponse> AppendEntries(AppendEntriesRequest request, IAddress node) 
-            => throw new NotImplementedException();
-        
-        public Task<InstallSnapshotResponse> InstalSnapshot(InstallSnapshotRequest request, IAddress node) 
+        public Task<AppendEntriesResponse> AppendEntries(AppendEntriesRequest request, IAddress node)
             => throw new NotImplementedException();
 
-        public Task<RequestVoteResponse> RequestVote(RequestVoteRequest request, IAddress node) 
+        public Task<InstallSnapshotResponse> InstalSnapshot(InstallSnapshotRequest request, IAddress node)
+            => throw new NotImplementedException();
+
+        public Task<RequestVoteResponse> RequestVote(RequestVoteRequest request, IAddress node)
             => throw new NotImplementedException();
     }
 
@@ -79,7 +96,7 @@
     /// </summary>
     public class AppStateMachine : IStateMachine
     {
-        public Task Apply(IEnumerable<object> commands) 
+        public Task Apply(IEnumerable<object> commands)
             => throw new NotImplementedException();
     }
 }

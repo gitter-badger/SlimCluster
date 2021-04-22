@@ -41,6 +41,20 @@ The strategic aim for SlimCluster is to implement other algorithms to make distr
 
 Check out the [Samples](src/Samples/) folder.
 
+## Example usage
+
+
+```cs
+// Assuming you're using Microsoft.Extensions.DependencyInjection, and the container is being configured
+IServicesCollection servces = // ...
+
+// We are setting up the SWIM membership algorithm for your micro-service instances
+services.AddClusterMembership(opts => {
+    opts.ClusterId = "MyMicroserviceCluster";
+});
+
+```
+
 ## License
 
 [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0)

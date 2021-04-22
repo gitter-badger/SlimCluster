@@ -56,13 +56,13 @@ services.AddClusterMembership(opts => {
 
 ```
 
-Then somwhere in your micro-service you can inject the `IClusterMembership`:
+Then somewhere in the micro-service you can inject the `IClusterMembership`:
 
 ```cs
 // Injected, this will be a singleton
-IClusterMemmbership cluster;
+IClusterMembership cluster;
 
-// Provides a snapshot list of the current instances discovered and alive:
+// Provides a snapshot collection of the current instances discovered and alive/healthy:
 cluster.Members 
 
 // Allows to get notifications when an new instance joines or leaves (dies):

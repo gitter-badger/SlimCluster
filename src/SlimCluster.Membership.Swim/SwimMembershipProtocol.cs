@@ -60,7 +60,7 @@
 
                 // Join or create a multicast group
                 lock (udpClientLock) {
-                    udpClient = new UdpClient(options.UdpPort, AddressFamily.InterNetwork/* InterNetworkV6*/);
+                    udpClient = new UdpClient(options.UdpPort,  options.AddressFamily);
                     udpClient.JoinMulticastGroup(groupAddress);
                     //udpClient.Client.RemoteEndPoint
                 }
@@ -282,6 +282,8 @@
         /// UDP multicast group on which new joining members will announce themselves.
         /// </summary>
         public string UdpMulticastGroupAddress { get; set; } = "239.1.1.1"; //"FF01::1";
+
+        public AddressFamily AddressFamily { get; set; } = AddressFamily.InterNetwork;
     }
 
     public static class ServiceCollectionExtensions

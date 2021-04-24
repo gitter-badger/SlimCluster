@@ -27,7 +27,7 @@
 
             //var raftCluster = serviceProvider.GetRequiredService<RaftCluster>();
 
-            var swimClusterMembership = serviceProvider.GetRequiredService<SwimMembershipProtocol>();
+            var swimClusterMembership = serviceProvider.GetRequiredService<SwimClusterMembership>();
 
             swimClusterMembership.MemberJoined += (target, e) => {
                 Console.WriteLine("The node {0} just joined", e.Node.Id);
@@ -42,11 +42,14 @@
 
             Console.WriteLine("Node is running");
 
-            Console.WriteLine("Press any key to exit");
-            Console.ReadLine();
+            var taskCompletionSource = new TaskCompletionSource<object?>();
+            Console.CancelKeyPress += (target, e) => taskCompletionSource.TrySetResult(null);
+
+            await taskCompletionSource.Task;
 
             Console.WriteLine("Node is stopping...");
             await swimClusterMembership.Stop();
+            Console.WriteLine("Node is stopped");
         }
     }
 

@@ -1,4 +1,4 @@
-﻿namespace SlimCluster.Membership.Swim
+﻿namespace SlimCluster.Membership.Swim.Serialization
 {
     using Newtonsoft.Json;
     using System;

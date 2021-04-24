@@ -1,0 +1,22 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: consoleapp
+  labels:
+    app: scca
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: scca
+  template:
+    metadata:
+      labels:
+        app: scca
+    spec:
+      containers:
+      - name: consoleapp
+        image: zarusz/consoleapp:1.0.0
+        imagePullPolicy: Never
+        ports:
+        - containerPort: 60001

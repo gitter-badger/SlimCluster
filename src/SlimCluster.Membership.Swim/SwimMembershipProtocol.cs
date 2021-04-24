@@ -16,10 +16,15 @@
         private readonly ILogger<SwimMembershipProtocol> logger;
         private readonly SwimClusterMembershipOptions options;
         private readonly ISerializer serializer;
+
         /// <summary>
         /// Other known members
         /// </summary>
         private readonly LinkedList<SwimMember> otherMembers;
+        private readonly object otherMembersLock = new object();
+
+        // This member state
+        private readonly SwimMemberSelf memberSelf;
 
         public string ClusterId => options.ClusterId;
 
@@ -36,6 +41,9 @@
             this.otherMembers = new LinkedList<SwimMember>();
 
             this.groupAddress = IPAddress.Parse(this.options.UdpMulticastGroupAddress);
+
+            // This member status
+            this.memberSelf = new SwimMemberSelf(this.options.NodeId, 0);
         }
 
         private readonly object udpClientLock = new object();
@@ -47,26 +55,33 @@
 
         public async Task Start()
         {
-            if (!isStarted)
-            {
+            if (!isStarted) {
                 // See https://docs.microsoft.com/pl-pl/dotnet/api/system.net.sockets.udpclient.joinmulticastgroup?view=net-5.0
 
                 // Join or create a multicast group
-                udpClient = new UdpClient(options.UdpPort, AddressFamily.InterNetworkV6);
-                udpClient.JoinMulticastGroup(groupAddress);
+                lock (udpClientLock) {
+                    udpClient = new UdpClient(options.UdpPort, AddressFamily.InterNetwork/* InterNetworkV6*/);
+                    udpClient.JoinMulticastGroup(groupAddress);
+                    //udpClient.Client.RemoteEndPoint
+                }
 
                 // Run the message processing loop
                 canRun = true;
                 recieveLoopTask = Task.Factory.StartNew(() => RecieveLoop(), TaskCreationOptions.LongRunning).Unwrap();
 
-                // Announce that this node joined the network
-                var payload = serializer.Serialize(new NodeJoinedMessage { NodeId = options.NodeId });
-                var result = await udpClient.SendAsync(payload, payload.Length, new IPEndPoint(groupAddress, options.UdpPort));
+                await NotifyJoined();
 
                 isStarted = true;
             }
-            // Establish the communication endpoint.
-            // ToDo: Multicast that this member joined.
+        }
+
+        protected async Task NotifyJoined()
+        {
+            if (udpClient is null) throw new NullReferenceException(nameof(udpClient));
+
+            // Announce (multicast) to others that this node joined the network
+            var payload = serializer.Serialize(new NodeJoinedMessage(memberSelf.Id, memberSelf.Incarnation));
+            var result = await udpClient.SendAsync(payload, payload.Length, new IPEndPoint(groupAddress, options.UdpPort));
         }
 
         private async Task RecieveLoop()
@@ -80,7 +95,7 @@
                     var msg = serializer.Deserialize<NodeJoinedMessage>(result.Buffer);
 
                     if (msg != null && msg.NodeId != null) {
-                        await OnNodeJoined(msg.NodeId, result.RemoteEndPoint);
+                        OnNodeJoined(msg, result.RemoteEndPoint);
                     }
                 }
             }
@@ -95,14 +110,17 @@
         public async Task Stop()
         {
             if (isStarted) {
+                canRun = false;
+
                 // Stop multicast group
-                if (udpClient != null) {
-                    udpClient.DropMulticastGroup(groupAddress);
-                    udpClient.Dispose();
-                    udpClient = null;
+                lock (udpClientLock) {
+                    if (udpClient != null) {
+                        udpClient.DropMulticastGroup(groupAddress);
+                        udpClient.Dispose();
+                        udpClient = null;
+                    }
                 }
 
-                canRun = false;
                 if (recieveLoopTask != null) {
                     await recieveLoopTask;
                 }
@@ -116,42 +134,56 @@
             await Stop();
         }
 
-        protected async Task OnNodeJoined(string id, IPEndPoint address)
+        protected void OnNodeJoined(NodeJoinedMessage m, IPEndPoint endPoint)
         {
-            logger.LogInformation("Node with {NodeId} joined with address {NodeAddress}", id, address);
+            logger.LogInformation("Node with {NodeId} incarnation {Incarnation} joined at [{NodeAddress}]:{NodePort}", m.NodeId, m.Incarnation, endPoint.Address, endPoint.Port);
 
-            // ToDo: Implement
+            // Add other members only
+            if (m.NodeId != memberSelf.Id) {
+
+                var member = new SwimMember(m.NodeId, new IPAddressWrapper(endPoint), DateTime.UtcNow, m.Incarnation, SwimMemberStatus.Active);
+                lock (otherMembersLock) {
+                    otherMembers.AddLast(member);
+                }
+
+                try {
+                    MemberJoined?.Invoke(this, new MemberEventArgs(member.Node, member.LastSeen));
+                }
+                catch (Exception e) {
+                    logger.LogWarning(e, "Exception while invoking event {HandlerName}", nameof(MemberJoined));
+                }
+            }
         }
     }
 
     public class NodeJoinedMessage
     {
         [JsonProperty("id")]
-        public string? NodeId { get; set; }
-    }
+        public string NodeId { get; set; }
 
-    public class SwimMemberSelf : IMember, INode
-    {
-        public string Id { get; }
-        public IAddress Address { get; protected set; }
-        public INodeStatus Status { get; protected set; }
+        [JsonProperty("inc")]
         public int Incarnation { get; set; }
 
-        #region IMember
+        protected NodeJoinedMessage()
+        {
+            NodeId = string.Empty;
+        }
+        public NodeJoinedMessage(string nodeId, int incarnation)
+        {
+            NodeId = nodeId;
+            Incarnation = incarnation;
+        }
+    }
 
-        public INode Node => this;
-        public DateTime Joined { get; protected set; }
-        public DateTime LastSeen { get; protected set; }
+    public class SwimMemberSelf
+    {
+        public string Id { get; }
+        public int Incarnation { get; set; }
 
-        #endregion
-
-        public SwimMemberSelf(string id, IAddress address, int incarnation)
+        public SwimMemberSelf(string id, int incarnation)
         {
             Id = id;
-            Address = address;
-            Status = SwimMemberStatus.Active;
-            Incarnation = 0;
-            Joined = LastSeen = DateTime.UtcNow;
+            Incarnation = incarnation;
         }
     }
 
@@ -208,6 +240,16 @@
         public static readonly SwimMemberStatus Confirm = new SwimMemberStatus(new Guid("{0BB58A7C-8ABF-4125-BFE4-C7D9BF62F8D0}"), "Confirm");
     }
 
+    public class IPAddressWrapper : IAddress
+    {
+        public IPEndPoint EndPoint { get; }
+
+        public IPAddressWrapper(IPEndPoint endPoint)
+        {
+            EndPoint = endPoint;
+        }
+    }
+
 
     public class SwimClusterMembershipOptions
     {
@@ -234,12 +276,12 @@
         /// <summary>
         /// UDP port used for internal membership message exchange
         /// </summary>
-        public int UdpPort { get; set; } = 1002;
+        public int UdpPort { get; set; } = 60001;
 
         /// <summary>
         /// UDP multicast group on which new joining members will announce themselves.
         /// </summary>
-        public string UdpMulticastGroupAddress { get; set; } = "FF01::1";
+        public string UdpMulticastGroupAddress { get; set; } = "239.1.1.1"; //"FF01::1";
     }
 
     public static class ServiceCollectionExtensions

@@ -29,13 +29,21 @@
 
             var swimClusterMembership = serviceProvider.GetRequiredService<SwimMembershipProtocol>();
 
+            swimClusterMembership.MemberJoined += (target, e) => {
+                Console.WriteLine("The node {0} just joined", e.Node.Id);
+            };
+
+            swimClusterMembership.MemberLeft += (target, e) => {
+                Console.WriteLine("The node {0} just left", e.Node.Id);
+            };
+
             Console.WriteLine("Node is starting...");
             await swimClusterMembership.Start();
 
             Console.WriteLine("Node is running");
 
             Console.WriteLine("Press any key to exit");
-            Console.ReadKey();
+            Console.ReadLine();
 
             Console.WriteLine("Node is stopping...");
             await swimClusterMembership.Stop();
